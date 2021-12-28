@@ -41,7 +41,7 @@ git-status-check:
 		false;\
     fi
 
-env-file-dev: git-status-check
+env-file-dev:
     # populating .env
 	@rm -f .env
 	@echo "IMAGE_NAME=${IMAGE_NAME_DEV}" >> .env
