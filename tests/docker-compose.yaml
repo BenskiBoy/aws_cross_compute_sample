@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  lambda_sample:
+    image: ${ECR_URL}/${IMAGE_NAME}:${MAJOR}.${MINOR}.${PATCH}-${GIT_COMMIT}
+    environment:
+      TASK_CONFIG: >-
+        {
+          "stuff": "fdafdaasdf"
+        }
+    ports:
+      - "9000:8080"
+    volumes:
+      - ~/.aws:/root/.aws
+      - ./output_tmp:/tmp

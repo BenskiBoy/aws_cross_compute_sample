@@ -5,30 +5,32 @@ ECR_URL=${ECR_ACCOUNT}.dkr.ecr.ap-southeast-2.amazonaws.com
 IMAGE_NAME=sample_compute
 IMAGE_NAME_DEV=${IMAGE_NAME}_dev
 
-SEMVER_MAJOR:=$(shell cut -d . -f 1 version) # 0
-SEMVER_MINOR:=$(shell cut -d . -f 2 version) # 0
-SEMVER_PATCH:=$(shell cut -d . -f 3 version) # 1
+SEMVER_MAJOR:=$(shell cut -d . -f 1 version)
+SEMVER_MINOR:=$(shell cut -d . -f 2 version)
+SEMVER_PATCH:=$(shell cut -d . -f 3 version)
 
-GIT_COMMIT=$(shell git rev-parse --short HEAD) # a1b2c3
+GIT_COMMIT=$(shell git rev-parse --short HEAD)
 
-DEV_VERSION=${SEMVER_MAJOR}.${SEMVER_MINOR}.${SEMVER_PATCH}-${GIT_COMMIT} # 0.0.1-a1b2c3
-RELEASE_VERSION=${SEMVER_MAJOR}.${SEMVER_MINOR}.${SEMVER_PATCH} #0.0.1
+DEV_VERSION=${SEMVER_MAJOR}.${SEMVER_MINOR}.${SEMVER_PATCH}-${GIT_COMMIT}
+RELEASE_VERSION=${SEMVER_MAJOR}.${SEMVER_MINOR}.${SEMVER_PATCH}
 
-DEV_TAG=${ECR_URL}/${IMAGE_NAME_DEV}:${DEV_VERSION} # 123456789.dkr.ecr.ap-southeast-2.amazonaws.com/sample_computer_dev:0.0.1-a1b2c3
-RELEASE_TAG=${ECR_URL}/${IMAGE_NAME_DEV}:${RELEASE_VERSION} # 123456789.dkr.ecr.ap-southeast-2.amazonaws.com/sample_computer_dev:0.0.1
+DEV_TAG=${ECR_URL}/${IMAGE_NAME_DEV}:${DEV_VERSION}
+RELEASE_TAG=${ECR_URL}/${IMAGE_NAME_DEV}:${RELEASE_VERSION}
 
 MIN_COVERAGE=80
 
 .DEFAULT_GOAL := help
 
+COMPUTE=lambda
+
 help:
 	@echo "Build targets:"
-	@echo "- build-dev:                             builds docker dev images for the pylon demo"
+	@echo "- build-dev:                             builds docker dev images for the app"
 	@echo "- unit-test-dev:                         Runs unit tests on the dev docker image"
-	@echo "- publish-dev:                           publishes docker images to the pylon demo dev ECR"
-	@echo "- publish-release:                       publishes docker iamges to the pylon demo ECR"
-	@echo "- deploy-dev:                            deploys the pylon demo application in dev"
-	@echo "- WORKSPACE=<workspace> deploy-release:  deploys the pylon demo application in <workspace>"
+	@echo "- publish-dev:                           publishes docker images to the dev app"
+	@echo "- publish-release:                       publishes docker iamges to the app"
+	@echo "- deploy-dev:                            deploys the app application in dev"
+	@echo "- WORKSPACE=<workspace> deploy-release:  deploys the app application in <workspace>"
 	@echo "- WORKSPACE=<workspace> destroy: tears down the application and all infrastructure in <workspace>"
 
 git-status-check:
@@ -64,21 +66,21 @@ env-file: git-status-check
 	cat .env
 
 ecr-login:
-	`aws ecr get-login --registry-ids ${ECR_ACCOUNT} --region ${ECR_REGION} --no-include-email`
-
-build-local-dev: ecr-login
-	docker-compose build ecr_release && \
-	cd tests/ && \
-	IMAGE_NAME=${IMAGE_NAME}_dev ECR_URL=${ECR_URL} MAJOR=${SEMVER_MAJOR} MINOR=${SEMVER_MINOR} PATCH=${SEMVER_PATCH} \
-	docker-compose -f docker-compose-local-test.yaml up
+	aws ecr get-login-password --region ${ECR_REGION} | \
+		docker login --username AWS --password-stdin ${ECR_ACCOUNT}.dkr.ecr.${ECR_REGION}.amazonaws.com
 
 build-dev: env-file-dev ecr-login
 	# builds an image with the postfixed by _dev to mark it as a dev image
-	docker build --tag ${DEV_TAG} .
+	docker build -f Dockerfile.${COMPUTE} --tag ${DEV_TAG} .
+
+start-local-dev: ecr-login build-dev
+	cd tests/ && \
+	IMAGE_NAME=${IMAGE_NAME}_dev ECR_URL=${ECR_URL} MAJOR=${SEMVER_MAJOR} MINOR=${SEMVER_MINOR} PATCH=${SEMVER_PATCH} GIT_COMMIT=${GIT_COMMIT} \
+	docker-compose -f docker-compose.yaml up
 
 build-release: env-file-dev ecr-login
 	# builds an image with the postfixed by _dev to mark it as a dev image
-	docker build --tag ${RELEASE_TAG} .
+	docker build -f Dockerfile.${COMPUTE} --tag ${RELEASE_TAG} .
 
 create-output-dir:
 	# creates an output directory for test results to go into
@@ -92,7 +94,7 @@ unit-test-dev: create-output-dir
 	cd tests/unit && \
 	BASE_IMAGE=${DEV_TAG} \
 	docker-compose build && \
-	MIN_COVERAGE=${MIN_COVERAGE} docker-compose run send-adapter-test
+	MIN_COVERAGE=${MIN_COVERAGE} docker-compose run compute_test
 
 unit-test-release: create-output-dir
 	# run unit tests on the dev image
@@ -100,7 +102,7 @@ unit-test-release: create-output-dir
 	cd tests/unit && \
 	BASE_IMAGE=${RELEASE_TAG} \
 	docker-compose build && \
-	MIN_COVERAGE=${MIN_COVERAGE} docker-compose run send-adapter-test
+	MIN_COVERAGE=${MIN_COVERAGE} docker-compose run compute_test
 
 publish-dev: ecr-login
 	# pushes the dev image to the dev ECR

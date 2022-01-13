@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  lambda_sample_test:
+    build:
+      context: .
+      args:
+        base_image: ${BASE_IMAGE}
+        aws_region: ap-southeast-2
+    command: >
+      pytest -v -s
+      --junitxml=/outputs/junit.xml
+      --cov-report=xml:/outputs/coverage.xml
+      --cov-report term-missing
+      --cov-fail-under ${MIN_COVERAGE}
+    container_name: lambda_sample_test
+    restart: "no"
+    volumes:
+      - ./.outputs:/outputs

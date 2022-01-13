@@ -1,0 +1,14 @@
+FROM python:3.9
+
+WORKDIR /usr/src/app
+
+ADD https://github.com/snyk/snyk/releases/download/v1.367.0/snyk-linux /usr/local/bin/snyk
+RUN chmod a+x /usr/local/bin/snyk
+
+ADD requirements.txt .
+
+RUN pip install -r requirements.txt
+
+# ADD app app
+COPY app .
+CMD ["python", "./app.py"]
